@@ -1,3 +1,4 @@
+
 // optimize-qr-code-design.ts
 'use server';
 
@@ -113,7 +114,7 @@ const generateImageFlow = ai.defineFlow(
     outputSchema: z.string(),
   },
   async (input) => {
-    let promptParts = [
+    let promptParts: (object)[] = [
       {
         text: `Generate a QR code with the following customizations. The QR code should be perfectly scannable.
         - Data from this QR code:`,
