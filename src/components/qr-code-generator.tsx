@@ -84,8 +84,7 @@ export function QRCodeGenerator() {
   const [eyeShape, setEyeShape] = useState("square");
   const [dotShape, setDotShape] = useState("square");
 
-  const [baseQr, setBaseQr] = useState<string | null>(null);
-  const [optimizedQr, setOptimizedQr] = useState<string | null>(null);
+  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [report, setReport] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -106,35 +105,66 @@ export function QRCodeGenerator() {
     return vCard;
   };
 
-  const handleGenerateBaseQr = async () => {
+  const handleGenerateAndOptimize = async () => {
+    setIsLoading(true);
+    setReport(null);
+    setQrCodeImage(null);
+
     let dataToEncode = "";
     if (qrType === "url") {
       if (!url) {
         toast({ title: "Error", description: "URL cannot be empty.", variant: "destructive" });
+        setIsLoading(false);
         return;
       }
       dataToEncode = url;
     } else if (qrType === "contact") {
       const isValid = await contactForm.trigger();
-      if (!isValid) return;
+      if (!isValid) {
+        setIsLoading(false);
+        return;
+      }
       dataToEncode = generateVCard(contactForm.getValues());
     }
 
-    if (dataToEncode) {
-      try {
-        const qrCodeDataUri = await QRCode.toDataURL(dataToEncode, {
-          width: 512,
-          margin: 2,
-          errorCorrectionLevel: 'H'
-        });
-        setBaseQr(qrCodeDataUri);
-        setOptimizedQr(null); // Reset optimized QR on new generation
-        setReport(null);
-        toast({ title: "Success", description: "QR Code generated!" });
-      } catch (err) {
-        console.error(err);
-        toast({ title: "Error", description: "Could not generate QR code.", variant: "destructive" });
+    if (!dataToEncode) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      const baseQr = await QRCode.toDataURL(dataToEncode, {
+        width: 512,
+        margin: 2,
+        errorCorrectionLevel: 'H'
+      });
+
+      toast({ title: "QR Code Generated", description: "Now optimizing with AI..." });
+
+      const result = await handleOptimize({
+        qrCodeDataUri: baseQr,
+        logoDataUri: logo || undefined,
+        shapeColor,
+        eyeShape,
+        dotShape,
+      });
+
+      if (result.success && result.data) {
+        setQrCodeImage(result.data.optimizedQrCodeDataUri);
+        setReport(result.data.optimizationReport);
+        toast({ title: "AI Optimization Complete", description: "Your QR code is ready." });
+      } else {
+        setQrCodeImage(baseQr); // Fallback to base QR
+        throw new Error(result.error || "Unknown error occurred during optimization");
       }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+      console.error(error);
+      toast({ title: "Process Failed", description: errorMessage, variant: "destructive" });
+      setQrCodeImage(null);
+      setReport(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -150,59 +180,9 @@ export function QRCodeGenerator() {
     }
   };
 
-  const onOptimize = async () => {
-    if (!baseQr) {
-      await handleGenerateBaseQr();
-      // Use a timeout to wait for state update before proceeding
-      setTimeout(() => {
-        // Need to read baseQr from a new closure after timeout
-        setBaseQr(currentBaseQr => {
-          if (!currentBaseQr) {
-            toast({ title: "Error", description: "Please generate a base QR code first.", variant: "destructive" });
-            return null;
-          }
-          runOptimization(currentBaseQr);
-          return currentBaseQr;
-        })
-      }, 100);
-    } else {
-      runOptimization(baseQr);
-    }
-  };
-
-  const runOptimization = async (qrCodeDataUri: string) => {
-    setIsLoading(true);
-    setReport(null);
-    try {
-      const result = await handleOptimize({
-        qrCodeDataUri,
-        logoDataUri: logo || undefined,
-        shapeColor,
-        eyeShape,
-        dotShape,
-      });
-
-      if (result.success && result.data) {
-        setOptimizedQr(result.data.optimizedQrCodeDataUri);
-        setReport(result.data.optimizationReport);
-        toast({ title: "AI Optimization Complete", description: "Your QR code is now optimized for performance and style." });
-      } else {
-        throw new Error(result.error || "Unknown error occurred");
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
-      console.error(error);
-      toast({ title: "Optimization Failed", description: errorMessage, variant: "destructive" });
-      setOptimizedQr(null);
-      setReport(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   const handleDownload = () => {
     const link = document.createElement("a");
-    link.href = optimizedQr || baseQr || "";
+    link.href = qrCodeImage || "";
     if (!link.href) {
         toast({ title: "Error", description: "No QR code to download.", variant: "destructive" });
         return;
@@ -212,8 +192,6 @@ export function QRCodeGenerator() {
     link.click();
     document.body.removeChild(link);
   };
-
-  const currentQrImage = optimizedQr || baseQr;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -230,8 +208,7 @@ export function QRCodeGenerator() {
         <CardContent>
           <Tabs value={qrType} onValueChange={(v) => {
               setQrType(v as QrType);
-              setBaseQr(null);
-              setOptimizedQr(null);
+              setQrCodeImage(null);
               setReport(null);
           }} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -343,7 +320,19 @@ export function QRCodeGenerator() {
           
         </CardContent>
          <CardFooter>
-            <Button onClick={handleGenerateBaseQr} className="w-full">Generate QR Code</Button>
+            <Button onClick={handleGenerateAndOptimize} disabled={isLoading} className="w-full">
+                {isLoading ? (
+                    <>
+                        <Loader2 className="mr-2 animate-spin" />
+                        Generating...
+                    </>
+                ) : (
+                    <>
+                        <Sparkles className="mr-2" />
+                        Generate & Optimize QR Code
+                    </>
+                )}
+            </Button>
         </CardFooter>
       </Card>
 
@@ -359,12 +348,12 @@ export function QRCodeGenerator() {
             {isLoading && (
               <div className="absolute inset-0 bg-background/80 flex flex-col justify-center items-center z-10 rounded-lg">
                 <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                <p className="mt-4 text-muted-foreground">AI is optimizing...</p>
+                <p className="mt-4 text-muted-foreground">AI is at work...</p>
               </div>
             )}
-            {currentQrImage ? (
+            {qrCodeImage ? (
               <Image
-                src={currentQrImage}
+                src={qrCodeImage}
                 alt="Generated QR Code"
                 width={300}
                 height={300}
@@ -379,11 +368,7 @@ export function QRCodeGenerator() {
             )}
           </CardContent>
           <CardFooter className="flex-col gap-4 mt-6">
-            <Button onClick={onOptimize} disabled={isLoading} className="w-full">
-              <Sparkles className="mr-2" />
-              Optimize with AI
-            </Button>
-            <Button onClick={handleDownload} disabled={!currentQrImage || isLoading} variant="secondary" className="w-full">
+            <Button onClick={handleDownload} disabled={!qrCodeImage || isLoading} variant="secondary" className="w-full">
               <Download className="mr-2" />
               Download
             </Button>
