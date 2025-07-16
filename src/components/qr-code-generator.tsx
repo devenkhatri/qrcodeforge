@@ -11,15 +11,8 @@ import {
   QrCode,
   Link,
   Contact,
-  Palette,
-  Eye,
-  Shapes,
-  Upload,
-  Sparkles,
   Download,
   Loader2,
-  Info,
-  Wand2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,20 +33,6 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
   Form,
   FormControl,
   FormField,
@@ -62,8 +41,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { handleOptimize } from "@/app/actions";
-import { Textarea } from "@/components/ui/textarea";
 
 type QrType = "url" | "contact";
 
@@ -81,14 +58,8 @@ export function QRCodeGenerator() {
   const { toast } = useToast();
   const [qrType, setQrType] = useState<QrType>("url");
   const [url, setUrl] = useState("https://firebase.google.com/");
-  const [logo, setLogo] = useState<string | null>(null);
-  const [shapeColor, setShapeColor] = useState("#673AB7");
-  const [eyeShape, setEyeShape] = useState("square");
-  const [dotShape, setDotShape] = useState("square");
-  const [userInstructions, setUserInstructions] = useState("");
 
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
-  const [report, setReport] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const contactForm = useForm<ContactFormValues>({
@@ -108,9 +79,8 @@ export function QRCodeGenerator() {
     return vCard;
   };
 
-  const handleGenerateAndOptimize = async () => {
+  const handleGenerate = async () => {
     setIsLoading(true);
-    setReport(null);
     setQrCodeImage(null);
 
     let dataToEncode = "";
@@ -136,51 +106,20 @@ export function QRCodeGenerator() {
     }
     
     try {
-      const baseQr = await QRCode.toDataURL(dataToEncode, {
+      const generatedQr = await QRCode.toDataURL(dataToEncode, {
         width: 512,
         margin: 2,
         errorCorrectionLevel: 'H'
       });
-
-      toast({ title: "QR Code Generated", description: "Now optimizing with AI..." });
-
-      const result = await handleOptimize({
-        qrCodeDataUri: baseQr,
-        logoDataUri: logo || undefined,
-        shapeColor,
-        eyeShape,
-        dotShape,
-        userInstructions,
-      });
-
-      if (result.success && result.data?.optimizedQrCodeDataUri) {
-        setQrCodeImage(result.data.optimizedQrCodeDataUri);
-        setReport(result.data.optimizationReport);
-        toast({ title: "AI Optimization Complete", description: "Your QR code is ready." });
-      } else {
-        setQrCodeImage(baseQr); // Fallback to base QR
-        throw new Error(result.error || "Unknown error occurred during optimization");
-      }
+      setQrCodeImage(generatedQr);
+      toast({ title: "QR Code Generated", description: "Your QR code is ready." });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
       console.error(error);
-      toast({ title: "Process Failed", description: errorMessage, variant: "destructive" });
+      toast({ title: "Generation Failed", description: errorMessage, variant: "destructive" });
       setQrCodeImage(null);
-      setReport(null);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const newLogo = event.target?.result as string;
-        setLogo(newLogo);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -206,14 +145,13 @@ export function QRCodeGenerator() {
             Configuration
           </CardTitle>
           <CardDescription>
-            Choose your QR code type, enter the data, and customize its appearance.
+            Choose your QR code type and enter the data to generate a QR code.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={qrType} onValueChange={(v) => {
               setQrType(v as QrType);
               setQrCodeImage(null);
-              setReport(null);
           }} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="url"><Link className="mr-2" />URL</TabsTrigger>
@@ -272,75 +210,9 @@ export function QRCodeGenerator() {
               </Form>
             </TabsContent>
           </Tabs>
-
-          <Accordion type="multiple" className="w-full mt-6" defaultValue={["appearance", "logo", "instructions"]}>
-            <AccordionItem value="appearance">
-              <AccordionTrigger>
-                <div className="flex items-center gap-2"><Palette />Appearance</div>
-              </AccordionTrigger>
-              <AccordionContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="space-y-2">
-                  <Label htmlFor="shapeColor">Shape Color</Label>
-                  <div className="relative">
-                    <Input id="shapeColor" type="color" value={shapeColor} onChange={e => setShapeColor(e.target.value)} className="p-1 h-10 w-full" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="eyeShape"><Eye className="inline-block mr-1 w-4 h-4"/>Eye Shape</Label>
-                  <Select value={eyeShape} onValueChange={setEyeShape}>
-                    <SelectTrigger><SelectValue placeholder="Select eye shape" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="square">Square</SelectItem>
-                      <SelectItem value="rounded">Rounded</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dotShape"><Shapes className="inline-block mr-1 w-4 h-4" />Dot Shape</Label>
-                   <Select value={dotShape} onValueChange={setDotShape}>
-                    <SelectTrigger><SelectValue placeholder="Select dot shape" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="square">Square</SelectItem>
-                      <SelectItem value="dots">Dots</SelectItem>
-                      <SelectItem value="rounded">Rounded</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="logo">
-              <AccordionTrigger>
-                <div className="flex items-center gap-2"><Upload />Logo</div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-2">
-                <div className="space-y-2">
-                    <Label htmlFor="logo-upload">Upload your logo (optional)</Label>
-                    <Input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} />
-                </div>
-                {logo && <div className="mt-4"><Image src={logo} alt="Logo preview" width={64} height={64} className="rounded-md border" /></div>}
-              </AccordionContent>
-            </AccordionItem>
-            <AccordionItem value="instructions">
-              <AccordionTrigger>
-                <div className="flex items-center gap-2"><Wand2 />AI Instructions</div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-2">
-                <div className="space-y-2">
-                  <Label htmlFor="user-instructions">Additional Instructions</Label>
-                  <Textarea
-                    id="user-instructions"
-                    placeholder="e.g., 'Make it look futuristic', 'Use a vibrant color scheme'"
-                    value={userInstructions}
-                    onChange={(e) => setUserInstructions(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Give the AI special instructions to guide the design.</p>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
         </CardContent>
          <CardFooter>
-            <Button onClick={handleGenerateAndOptimize} disabled={isLoading} className="w-full">
+            <Button onClick={handleGenerate} disabled={isLoading} className="w-full">
                 {isLoading ? (
                     <>
                         <Loader2 className="mr-2 animate-spin" />
@@ -348,8 +220,8 @@ export function QRCodeGenerator() {
                     </>
                 ) : (
                     <>
-                        <Sparkles className="mr-2" />
-                        Generate & Optimize QR Code
+                        <QrCode className="mr-2" />
+                        Generate QR Code
                     </>
                 )}
             </Button>
@@ -368,7 +240,7 @@ export function QRCodeGenerator() {
             {isLoading && (
               <div className="absolute inset-0 bg-background/80 flex flex-col justify-center items-center z-10 rounded-lg">
                 <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                <p className="mt-4 text-muted-foreground">AI is at work...</p>
+                <p className="mt-4 text-muted-foreground">Generating...</p>
               </div>
             )}
             {qrCodeImage ? (
@@ -392,15 +264,6 @@ export function QRCodeGenerator() {
               <Download className="mr-2" />
               Download
             </Button>
-            {report && (
-                <Alert className="w-full mt-4 transition-all duration-500 ease-in-out">
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>AI Optimization Report</AlertTitle>
-                    <AlertDescription>
-                        {report}
-                    </AlertDescription>
-                </Alert>
-            )}
           </CardFooter>
         </Card>
       </div>

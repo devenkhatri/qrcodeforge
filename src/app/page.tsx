@@ -12,7 +12,7 @@ export default function Home() {
           </h1>
         </div>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Create, customize, and optimize your QR codes with the power of AI. Turn simple links and contacts into beautifully branded, scannable art.
+          Create and customize your QR codes. Turn simple links and contacts into scannable QR codes.
         </p>
       </header>
       <QRCodeGenerator />
