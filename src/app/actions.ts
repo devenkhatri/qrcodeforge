@@ -9,6 +9,7 @@ const actionSchema = z.object({
   shapeColor: z.string().optional(),
   eyeShape: z.string().optional(),
   dotShape: z.string().optional(),
+  userInstructions: z.string().optional(),
 });
 
 export async function handleOptimize(data: OptimizeQrCodeDesignInput) {

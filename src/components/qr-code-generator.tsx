@@ -19,6 +19,7 @@ import {
   Download,
   Loader2,
   Info,
+  Wand2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { handleOptimize } from "@/app/actions";
+import { Textarea } from "@/components/ui/textarea";
 
 type QrType = "url" | "contact";
 
@@ -83,6 +85,7 @@ export function QRCodeGenerator() {
   const [shapeColor, setShapeColor] = useState("#673AB7");
   const [eyeShape, setEyeShape] = useState("square");
   const [dotShape, setDotShape] = useState("square");
+  const [userInstructions, setUserInstructions] = useState("");
 
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [report, setReport] = useState<string | null>(null);
@@ -147,9 +150,10 @@ export function QRCodeGenerator() {
         shapeColor,
         eyeShape,
         dotShape,
+        userInstructions,
       });
 
-      if (result.success && result.data) {
+      if (result.success && result.data?.optimizedQrCodeDataUri) {
         setQrCodeImage(result.data.optimizedQrCodeDataUri);
         setReport(result.data.optimizationReport);
         toast({ title: "AI Optimization Complete", description: "Your QR code is ready." });
@@ -181,12 +185,12 @@ export function QRCodeGenerator() {
   };
 
   const handleDownload = () => {
-    const link = document.createElement("a");
-    link.href = qrCodeImage || "";
-    if (!link.href) {
+    if (!qrCodeImage) {
         toast({ title: "Error", description: "No QR code to download.", variant: "destructive" });
         return;
     }
+    const link = document.createElement("a");
+    link.href = qrCodeImage;
     link.download = "qrcode.png";
     document.body.appendChild(link);
     link.click();
@@ -269,7 +273,7 @@ export function QRCodeGenerator() {
             </TabsContent>
           </Tabs>
 
-          <Accordion type="multiple" className="w-full mt-6" defaultValue={["appearance"]}>
+          <Accordion type="multiple" className="w-full mt-6" defaultValue={["appearance", "logo", "instructions"]}>
             <AccordionItem value="appearance">
               <AccordionTrigger>
                 <div className="flex items-center gap-2"><Palette />Appearance</div>
@@ -316,8 +320,24 @@ export function QRCodeGenerator() {
                 {logo && <div className="mt-4"><Image src={logo} alt="Logo preview" width={64} height={64} className="rounded-md border" /></div>}
               </AccordionContent>
             </AccordionItem>
+            <AccordionItem value="instructions">
+              <AccordionTrigger>
+                <div className="flex items-center gap-2"><Wand2 />AI Instructions</div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="user-instructions">Additional Instructions</Label>
+                  <Textarea
+                    id="user-instructions"
+                    placeholder="e.g., 'Make it look futuristic', 'Use a vibrant color scheme'"
+                    value={userInstructions}
+                    onChange={(e) => setUserInstructions(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Give the AI special instructions to guide the design.</p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
-          
         </CardContent>
          <CardFooter>
             <Button onClick={handleGenerateAndOptimize} disabled={isLoading} className="w-full">
