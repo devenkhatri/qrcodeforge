@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -118,7 +119,7 @@ export function QRCodeGenerator() {
     return vCard;
   };
 
-  const handleGenerateBaseQr = () => {
+  const handleGenerateBaseQr = async () => {
     let dataToEncode = "";
     if (qrType === "url") {
       if (!url) {
@@ -127,7 +128,7 @@ export function QRCodeGenerator() {
       }
       dataToEncode = url;
     } else if (qrType === "contact") {
-      const isValid = contactForm.trigger();
+      const isValid = await contactForm.trigger();
       if (!isValid) return;
       dataToEncode = generateVCard(contactForm.getValues());
     }
@@ -140,21 +141,16 @@ export function QRCodeGenerator() {
       toast({ title: "Success", description: "QR Code generated!" });
     }
   };
-  
-  useEffect(() => {
-    if (baseQr) {
-      handleGenerateBaseQr();
-    }
-  }, [qrType, url, contactForm.watch()]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        setLogo(event.target?.result as string);
+        const newLogo = event.target?.result as string;
+        setLogo(newLogo);
         if (baseQr) {
-          onOptimize(event.target?.result as string);
+          onOptimize(newLogo);
         }
       };
       reader.readAsDataURL(file);
@@ -333,10 +329,11 @@ export function QRCodeGenerator() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-          <div className="mt-6">
-            <Button onClick={handleGenerateBaseQr} className="w-full">Generate QR Code</Button>
-          </div>
+          
         </CardContent>
+         <CardFooter>
+            <Button onClick={handleGenerateBaseQr} className="w-full">Generate QR Code</Button>
+        </CardFooter>
       </Card>
 
       <div className="sticky top-8">
@@ -394,3 +391,4 @@ export function QRCodeGenerator() {
     </div>
   );
 }
+ 
