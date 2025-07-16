@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -140,6 +140,12 @@ export function QRCodeGenerator() {
       toast({ title: "Success", description: "QR Code generated!" });
     }
   };
+  
+  useEffect(() => {
+    if (baseQr) {
+      handleGenerateBaseQr();
+    }
+  }, [qrType, url, contactForm.watch()]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,12 +153,15 @@ export function QRCodeGenerator() {
       const reader = new FileReader();
       reader.onload = (event) => {
         setLogo(event.target?.result as string);
+        if (baseQr) {
+          onOptimize(event.target?.result as string);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const onOptimize = async () => {
+  const onOptimize = async (currentLogo?: string) => {
     if (!baseQr) {
       toast({ title: "Error", description: "Please generate a base QR code first.", variant: "destructive" });
       return;
@@ -161,10 +170,11 @@ export function QRCodeGenerator() {
     setReport(null);
     try {
       const qrCodeDataUri = await toDataURL(baseQr);
+      const logoToUse = currentLogo || logo;
 
       const result = await handleOptimize({
         qrCodeDataUri,
-        logoDataUri: logo || undefined,
+        logoDataUri: logoToUse || undefined,
         shapeColor,
         eyeShape,
         dotShape,
@@ -274,10 +284,8 @@ export function QRCodeGenerator() {
               </Form>
             </TabsContent>
           </Tabs>
-          <div className="mt-6">
-            <Button onClick={handleGenerateBaseQr} className="w-full">Generate QR Code</Button>
-          </div>
-          <Accordion type="multiple" className="w-full mt-6">
+
+          <Accordion type="multiple" className="w-full mt-6" defaultValue={["appearance"]}>
             <AccordionItem value="appearance">
               <AccordionTrigger>
                 <div className="flex items-center gap-2"><Palette />Appearance</div>
@@ -325,6 +333,9 @@ export function QRCodeGenerator() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
+          <div className="mt-6">
+            <Button onClick={handleGenerateBaseQr} className="w-full">Generate QR Code</Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -347,8 +358,8 @@ export function QRCodeGenerator() {
               <Image
                 src={currentQrImage}
                 alt="Generated QR Code"
-                width={512}
-                height={512}
+                width={300}
+                height={300}
                 className="rounded-md object-contain"
                 data-ai-hint="qr code"
               />
@@ -360,7 +371,7 @@ export function QRCodeGenerator() {
             )}
           </CardContent>
           <CardFooter className="flex-col gap-4 mt-6">
-            <Button onClick={onOptimize} disabled={!baseQr || isLoading} className="w-full">
+            <Button onClick={() => onOptimize()} disabled={!baseQr || isLoading} className="w-full">
               <Sparkles className="mr-2" />
               Optimize with AI
             </Button>
