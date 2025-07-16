@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import QRCode from "qrcode";
 import {
   QrCode,
   Link,
@@ -74,20 +75,6 @@ const contactSchema = z.object({
 
 type ContactFormValues = z.infer<typeof contactSchema>;
 
-// Helper function to convert an image URL to a Data URI
-const toDataURL = (url: string) =>
-  fetch(url)
-    .then((response) => response.blob())
-    .then(
-      (blob) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        })
-    );
-
 export function QRCodeGenerator() {
   const { toast } = useToast();
   const [qrType, setQrType] = useState<QrType>("url");
@@ -134,11 +121,20 @@ export function QRCodeGenerator() {
     }
 
     if (dataToEncode) {
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(dataToEncode)}`;
-      setBaseQr(qrUrl);
-      setOptimizedQr(null);
-      setReport(null);
-      toast({ title: "Success", description: "QR Code generated!" });
+      try {
+        const qrCodeDataUri = await QRCode.toDataURL(dataToEncode, {
+          width: 512,
+          margin: 2,
+          errorCorrectionLevel: 'H'
+        });
+        setBaseQr(qrCodeDataUri);
+        setOptimizedQr(null); // Reset optimized QR on new generation
+        setReport(null);
+        toast({ title: "Success", description: "QR Code generated!" });
+      } catch (err) {
+        console.error(err);
+        toast({ title: "Error", description: "Could not generate QR code.", variant: "destructive" });
+      }
     }
   };
 
@@ -149,28 +145,38 @@ export function QRCodeGenerator() {
       reader.onload = (event) => {
         const newLogo = event.target?.result as string;
         setLogo(newLogo);
-        if (baseQr) {
-          onOptimize(newLogo);
-        }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const onOptimize = async (currentLogo?: string) => {
+  const onOptimize = async () => {
     if (!baseQr) {
-      toast({ title: "Error", description: "Please generate a base QR code first.", variant: "destructive" });
-      return;
+      await handleGenerateBaseQr();
+      // Use a timeout to wait for state update before proceeding
+      setTimeout(() => {
+        // Need to read baseQr from a new closure after timeout
+        setBaseQr(currentBaseQr => {
+          if (!currentBaseQr) {
+            toast({ title: "Error", description: "Please generate a base QR code first.", variant: "destructive" });
+            return null;
+          }
+          runOptimization(currentBaseQr);
+          return currentBaseQr;
+        })
+      }, 100);
+    } else {
+      runOptimization(baseQr);
     }
+  };
+
+  const runOptimization = async (qrCodeDataUri: string) => {
     setIsLoading(true);
     setReport(null);
     try {
-      const qrCodeDataUri = await toDataURL(baseQr);
-      const logoToUse = currentLogo || logo;
-
       const result = await handleOptimize({
         qrCodeDataUri,
-        logoDataUri: logoToUse || undefined,
+        logoDataUri: logo || undefined,
         shapeColor,
         eyeShape,
         dotShape,
@@ -192,7 +198,7 @@ export function QRCodeGenerator() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
   const handleDownload = () => {
     const link = document.createElement("a");
@@ -222,7 +228,12 @@ export function QRCodeGenerator() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={qrType} onValueChange={(v) => setQrType(v as QrType)} className="w-full">
+          <Tabs value={qrType} onValueChange={(v) => {
+              setQrType(v as QrType);
+              setBaseQr(null);
+              setOptimizedQr(null);
+              setReport(null);
+          }} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="url"><Link className="mr-2" />URL</TabsTrigger>
               <TabsTrigger value="contact"><Contact className="mr-2" />Contact Card</TabsTrigger>
@@ -368,7 +379,7 @@ export function QRCodeGenerator() {
             )}
           </CardContent>
           <CardFooter className="flex-col gap-4 mt-6">
-            <Button onClick={() => onOptimize()} disabled={!baseQr || isLoading} className="w-full">
+            <Button onClick={onOptimize} disabled={isLoading} className="w-full">
               <Sparkles className="mr-2" />
               Optimize with AI
             </Button>
@@ -391,4 +402,3 @@ export function QRCodeGenerator() {
     </div>
   );
 }
- 
